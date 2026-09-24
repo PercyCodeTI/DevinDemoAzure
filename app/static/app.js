@@ -13,6 +13,24 @@ const brl = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 2,
 });
 
+// Rótulos do eixo Y: forma compacta para caber na margem do gráfico.
+const brlCompacto = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+// Limites espelham os do backend (app/schemas.py).
+const limites = {
+  idade_atual: { min: 18, max: 100, inteiro: true },
+  idade_aposentadoria: { min: 19, max: 110, inteiro: true },
+  patrimonio_atual: { min: 0, max: 1_000_000_000, inteiro: false },
+  renda_desejada: { min: 0.01, max: 10_000_000, inteiro: false },
+  anos_usufruto: { min: 1, max: 60, inteiro: true },
+  taxa_retorno_real: { min: 0, max: 50, inteiro: false },
+};
+
 function limparErros() {
   document.querySelectorAll(".erro").forEach((e) => (e.textContent = ""));
   document.querySelectorAll("input").forEach((i) => i.classList.remove("invalido"));
@@ -49,14 +67,18 @@ function validar(v) {
   });
   if (!ok) return false;
 
-  if (Number(v.renda_desejada) <= 0) {
-    marcarErro("renda_desejada", "Informe uma renda maior que zero");
-    ok = false;
-  }
-  if (Number(v.anos_usufruto) < 1) {
-    marcarErro("anos_usufruto", "Informe ao menos 1 ano");
-    ok = false;
-  }
+  campos.forEach((c) => {
+    const limite = limites[c];
+    const valor = Number(v[c]);
+    if (limite.inteiro && !Number.isInteger(valor)) {
+      marcarErro(c, "Informe um número inteiro");
+      ok = false;
+    } else if (valor < limite.min || valor > limite.max) {
+      marcarErro(c, `Informe um valor entre ${limite.min} e ${limite.max}`);
+      ok = false;
+    }
+  });
+  if (!ok) return false;
   if (Number(v.idade_aposentadoria) <= Number(v.idade_atual)) {
     marcarErro("idade_aposentadoria", "Deve ser maior que a idade atual");
     ok = false;
@@ -82,9 +104,9 @@ function desenharGrafico(evolucao) {
       const valor = maxY * f;
       const py = y(valor);
       return `<line x1="${margem.esquerda}" y1="${py}" x2="${largura - margem.direita}" y2="${py}" stroke="#e2e8f0" />
-        <text x="${margem.esquerda - 8}" y="${py + 4}" text-anchor="end" font-size="11" fill="#64748b">${brl
-        .format(valor)
-        .replace(/\s/g, " ")}</text>`;
+        <text x="${margem.esquerda - 8}" y="${py + 4}" text-anchor="end" font-size="11" fill="#64748b"><title>${brl.format(
+        valor
+      )}</title>${brlCompacto.format(valor).replace(/\s/g, " ")}</text>`;
     })
     .join("");
 
