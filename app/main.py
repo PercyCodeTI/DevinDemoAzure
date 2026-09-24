@@ -187,6 +187,31 @@ def listar_simulacoes(
     return [SimulacaoRegistro(**r) for r in registros]
 
 
+@app.get("/api/admin/simulations/count")
+def contar_simulacoes(
+    request: Request,
+    from_: datetime | None = Query(default=None, alias="from"),
+    to: datetime | None = Query(default=None),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict:
+    """Contagem por janela, usada para conferir a persistência no teste de carga."""
+    _autorizar_admin(request, x_api_key)
+    return {"total": db.contar(request.app.state.engine, from_, to)}
+
+
+@app.delete("/api/admin/simulations")
+def remover_simulacoes(
+    request: Request,
+    from_: datetime = Query(alias="from"),
+    to: datetime = Query(),
+    x_api_key: str | None = Header(default=None, alias="X-API-Key"),
+) -> dict:
+    """Limpeza dos dados gerados por teste de carga em uma janela conhecida."""
+    _autorizar_admin(request, x_api_key)
+    removidas = db.remover_intervalo(request.app.state.engine, from_, to)
+    return {"removidas": removidas}
+
+
 @app.post("/api/admin/purge")
 def expurgar(
     request: Request,

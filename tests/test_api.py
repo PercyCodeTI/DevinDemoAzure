@@ -95,6 +95,21 @@ def test_listagem_admin_filtra_periodo(client):
     assert len(cheio.json()) == 1
 
 
+def test_contagem_e_remocao_por_intervalo(client):
+    client.post("/api/simulate", json=PAYLOAD)
+    _drenar(client)
+    headers = {"X-API-Key": "chave-de-teste"}
+    janela = "from=2000-01-01T00:00:00&to=2100-01-01T00:00:00"
+
+    assert client.get("/api/admin/simulations/count").status_code == 401
+    assert client.get("/api/admin/simulations/count", headers=headers).json() == {"total": 1}
+
+    assert client.delete(f"/api/admin/simulations?{janela}").status_code == 401
+    r = client.delete(f"/api/admin/simulations?{janela}", headers=headers)
+    assert r.json() == {"removidas": 1}
+    assert client.get("/api/admin/simulations/count", headers=headers).json() == {"total": 0}
+
+
 def test_purge_exige_chave(client):
     assert client.post("/api/admin/purge").status_code == 401
     r = client.post("/api/admin/purge", headers={"X-API-Key": "chave-de-teste"})

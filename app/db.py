@@ -15,6 +15,7 @@ from sqlalchemy import (
     Table,
     create_engine,
     delete,
+    func,
     select,
     text,
 )
@@ -95,6 +96,27 @@ def listar(
     stmt = stmt.order_by(simulacoes.c.criado_em.desc()).limit(limite)
     with engine.connect() as conn:
         return [dict(row) for row in conn.execute(stmt).mappings()]
+
+
+def contar(engine: Engine, inicio: datetime | None, fim: datetime | None) -> int:
+    stmt = select(func.count()).select_from(simulacoes)
+    if inicio is not None:
+        stmt = stmt.where(simulacoes.c.criado_em >= inicio)
+    if fim is not None:
+        stmt = stmt.where(simulacoes.c.criado_em <= fim)
+    with engine.connect() as conn:
+        return int(conn.execute(stmt).scalar_one())
+
+
+def remover_intervalo(engine: Engine, inicio: datetime, fim: datetime) -> int:
+    """Remove simulações criadas em um intervalo (limpeza pós-teste de carga)."""
+    with engine.begin() as conn:
+        result = conn.execute(
+            delete(simulacoes).where(
+                simulacoes.c.criado_em >= inicio, simulacoes.c.criado_em <= fim
+            )
+        )
+    return result.rowcount or 0
 
 
 def expurgar(engine: Engine, retencao_meses: int) -> int:

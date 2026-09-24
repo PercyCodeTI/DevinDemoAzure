@@ -15,16 +15,31 @@
       <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
     </TestPlan>
     <hashTree>
-      <com.blazemeter.jmeter.threads.concurrency.ConcurrencyThreadGroup guiclass="com.blazemeter.jmeter.threads.concurrency.ConcurrencyThreadGroupGui" testclass="com.blazemeter.jmeter.threads.concurrency.ConcurrencyThreadGroup" testname="Carga" enabled="true">
-        <stringProp name="TargetLevel">${__P(carga,100)}</stringProp>
-        <stringProp name="RampUp">2</stringProp>
-        <stringProp name="Steps">10</stringProp>
-        <stringProp name="Hold">10</stringProp>
-        <stringProp name="LogFilename"></stringProp>
-        <stringProp name="Unit">M</stringProp>
-        <elementProp name="ThreadGroup.main_controller" elementType="com.blazemeter.jmeter.control.VirtualUserController"/>
+      <!-- Perfil do PRD: 0→100 VUs em 2 min, 100 VUs por 10 min, pico 100→300 em 3 min, 300→0 em 1 min.
+         Os valores são por engine: com engineInstances=2 (loadtest/config.yaml) 50+100 viram 100 e 300. -->
+      <kg.apc.jmeter.threads.UltimateThreadGroup guiclass="kg.apc.jmeter.threads.UltimateThreadGroupGui" testclass="kg.apc.jmeter.threads.UltimateThreadGroup" testname="Carga" enabled="true">
+        <collectionProp name="ultimatethreadgroupdata">
+          <collectionProp name="sustentacao">
+            <stringProp name="threads">${__P(vus_base,50)}</stringProp>
+            <stringProp name="delay">0</stringProp>
+            <stringProp name="rampup">120</stringProp>
+            <stringProp name="hold">780</stringProp>
+            <stringProp name="shutdown">60</stringProp>
+          </collectionProp>
+          <collectionProp name="pico">
+            <stringProp name="threads">${__P(vus_pico,100)}</stringProp>
+            <stringProp name="delay">720</stringProp>
+            <stringProp name="rampup">180</stringProp>
+            <stringProp name="hold">0</stringProp>
+            <stringProp name="shutdown">60</stringProp>
+          </collectionProp>
+        </collectionProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
-      </com.blazemeter.jmeter.threads.concurrency.ConcurrencyThreadGroup>
+      </kg.apc.jmeter.threads.UltimateThreadGroup>
       <hashTree>
         <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Defaults" enabled="true">
           <stringProp name="HTTPSampler.domain">${webapp_url}</stringProp>
@@ -50,7 +65,7 @@
           <stringProp name="minimumValue">25</stringProp>
           <stringProp name="maximumValue">55</stringProp>
           <boolProp name="perThread">true</boolProp>
-          <stringProp name="outputFormat">00</stringProp>
+          <stringProp name="outputFormat">0</stringProp>
         </RandomVariableConfig>
         <hashTree/>
         <RandomVariableConfig guiclass="TestBeanGUI" testclass="RandomVariableConfig" testname="renda" enabled="true">
@@ -58,7 +73,7 @@
           <stringProp name="minimumValue">3000</stringProp>
           <stringProp name="maximumValue">20000</stringProp>
           <boolProp name="perThread">true</boolProp>
-          <stringProp name="outputFormat">00000</stringProp>
+          <stringProp name="outputFormat">0</stringProp>
         </RandomVariableConfig>
         <hashTree/>
         <ThroughputController guiclass="ThroughputControllerGui" testclass="ThroughputController" testname="90% simulate" enabled="true">
