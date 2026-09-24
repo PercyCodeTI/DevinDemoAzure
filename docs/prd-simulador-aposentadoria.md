@@ -1,8 +1,9 @@
 # PRD — Simulador de Aporte para Aposentadoria
 
-**Versão:** 1.1 | **Data:** 2026-09-23 | **Autor:** Devin (para Percy)
+**Versão:** 1.2 | **Data:** 2026-09-23 | **Autor:** Devin (para Percy)
 
 > Mudança na v1.1: todas as simulações passam a ser persistidas em banco de dados.
+> Mudança na v1.2: todos os recursos Azure devem ser criados com a tag `SecurityControl=Ignore`.
 
 ## 1. Objetivo
 
@@ -70,6 +71,7 @@ Permitir que uma pessoa descubra **quanto precisa investir por mês** para ating
 | RNF-07 | Banco com backup automático (PITR de 7 dias) e criptografia em repouso e em trânsito. |
 | RNF-08 | Sem dados pessoais identificáveis gravados: apenas parâmetros financeiros anônimos, sem nome, e-mail, CPF ou IP completo. |
 | RNF-09 | Retenção das simulações: 24 meses, com expurgo automático. |
+| RNF-10 | **Todos** os recursos Azure devem ser criados com a tag `SecurityControl` = `Ignore`. |
 
 ## 6. Arquitetura e Infraestrutura (Azure)
 
@@ -96,6 +98,23 @@ IaC: Bicep no repositório
 | Provisionamento | Bicep + GitHub Actions | IaC e CI/CD |
 
 Acesso ao banco via **Managed Identity** do App Service (sem senha na aplicação), com firewall restrito a serviços Azure/Private Endpoint.
+
+**Tagueamento obrigatório:** todo recurso Azure provisionado (resource group, App Service Plan, App Service, Azure SQL, Front Door, Key Vault, App Configuration, Application Insights, Log Analytics, Azure Load Testing) deve carregar a tag `SecurityControl` com valor `Ignore`. A tag é definida de forma centralizada no Bicep e herdada por todos os módulos:
+
+```bicep
+param tags object = {
+  SecurityControl: 'Ignore'
+}
+// aplicado em todos os recursos: tags: tags
+```
+
+A pipeline de CI/CD valida, após o deploy, que nenhum recurso do resource group está sem a tag:
+
+```
+az resource list -g rgdevin --query "[?tags.SecurityControl!='Ignore'].name" -o tsv
+```
+
+O deploy falha se a consulta retornar qualquer recurso.
 
 **Modelo de dados — tabela `simulacoes`:**
 
