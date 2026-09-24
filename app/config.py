@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from urllib.parse import quote_plus
 
 
 @dataclass(frozen=True)
@@ -28,15 +29,18 @@ def _database_url() -> str:
         # Managed Identity do App Service: sem senha na connection string (RNF-04).
         driver = os.getenv("SQL_ODBC_DRIVER", "ODBC Driver 18 for SQL Server")
         client_id = os.getenv("SQL_MI_CLIENT_ID")
-        url = (
-            f"mssql+pyodbc://@{server}/{database}"
-            f"?driver={driver.replace(' ', '+')}"
-            "&Encrypt=yes&TrustServerCertificate=no"
-            "&Authentication=ActiveDirectoryMsi"
-        )
+        partes = [
+            f"DRIVER={{{driver}}}",
+            f"SERVER=tcp:{server},1433",
+            f"DATABASE={database}",
+            "Encrypt=yes",
+            "TrustServerCertificate=no",
+            "Authentication=ActiveDirectoryMsi",
+        ]
         if client_id:
-            url = f"{url}&UID={client_id}"
-        return url
+            # Identidade gerenciada atribuída pelo usuário.
+            partes.append(f"UID={client_id}")
+        return f"mssql+pyodbc:///?odbc_connect={quote_plus(';'.join(partes))}"
     return "sqlite:///./simulacoes.db"
 
 

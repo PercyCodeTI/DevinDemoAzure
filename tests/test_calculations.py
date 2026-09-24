@@ -92,3 +92,16 @@ def test_taxa_zero_nao_divide_por_zero():
     )
     assert resultado.patrimonio_alvo == pytest.approx(120000)
     assert resultado.aporte_mensal == pytest.approx(120000 / 360, abs=0.01)
+
+
+def test_url_azure_sql_usa_odbc_connect(monkeypatch):
+    from app import config
+
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("SQL_SERVER", "srv.database.windows.net")
+    monkeypatch.setenv("SQL_DATABASE", "db")
+    monkeypatch.setenv("SQL_MI_CLIENT_ID", "cid")
+    url = config.get_settings().database_url
+    assert url.startswith("mssql+pyodbc:///?odbc_connect=")
+    assert "Authentication%3DActiveDirectoryMsi" in url
+    assert "UID%3Dcid" in url
