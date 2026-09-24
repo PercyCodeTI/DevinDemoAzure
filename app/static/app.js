@@ -89,7 +89,7 @@ function validar(v) {
 function desenharGrafico(evolucao) {
   const largura = 800;
   const altura = 320;
-  const margem = { topo: 16, direita: 16, baixo: 32, esquerda: 72 };
+  const margem = { topo: 16, direita: 16, baixo: 32, esquerda: 104 };
   const areaL = largura - margem.esquerda - margem.direita;
   const areaA = altura - margem.topo - margem.baixo;
   const maxY = Math.max(...evolucao.map((p) => p.patrimonio), 1);
