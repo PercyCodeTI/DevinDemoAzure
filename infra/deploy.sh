@@ -30,12 +30,18 @@ WEBAPP=$(az deployment group list --resource-group "$RESOURCE_GROUP" \
   --query "sort_by([?contains(name, 'simapos-${AMBIENTE}')], &properties.timestamp)[-1].properties.outputs.webAppName.value" -o tsv)
 SQL_FQDN=$(az deployment group list --resource-group "$RESOURCE_GROUP" \
   --query "sort_by([?contains(name, 'simapos-${AMBIENTE}')], &properties.timestamp)[-1].properties.outputs.sqlServerFqdn.value" -o tsv)
+REDE_PRIVADA=$(az deployment group list --resource-group "$RESOURCE_GROUP" \
+  --query "sort_by([?contains(name, 'simapos-${AMBIENTE}')], &properties.timestamp)[-1].properties.outputs.redePrivada.value" -o tsv)
 
-echo "==> Concedendo acesso da Managed Identity ao banco"
-SQL_SCRIPT=$(mktemp)
-sed "s/{{APP_NAME}}/${WEBAPP}/g" "${RAIZ}/infra/conceder-acesso-mi.sql" > "$SQL_SCRIPT"
-python3 "${RAIZ}/infra/executar_sql.py" "$SQL_FQDN" sqldb-simulacoes "$SQL_SCRIPT"
-rm -f "$SQL_SCRIPT"
+# Com rede privada o SQL só é alcançável de dentro da VNet; a identidade gerenciada
+# do App Service já é administradora Entra ID do servidor e cria o schema sozinha.
+if [ "$REDE_PRIVADA" != "true" ]; then
+  echo "==> Concedendo acesso da Managed Identity ao banco"
+  SQL_SCRIPT=$(mktemp)
+  sed "s/{{APP_NAME}}/${WEBAPP}/g" "${RAIZ}/infra/conceder-acesso-mi.sql" > "$SQL_SCRIPT"
+  python3 "${RAIZ}/infra/executar_sql.py" "$SQL_FQDN" sqldb-simulacoes "$SQL_SCRIPT"
+  rm -f "$SQL_SCRIPT"
+fi
 
 echo "==> Publicando aplicação"
 PACOTE=$(mktemp -u).zip

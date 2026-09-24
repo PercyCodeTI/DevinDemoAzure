@@ -27,12 +27,16 @@ def _database_url() -> str:
     if server and database:
         # Managed Identity do App Service: sem senha na connection string (RNF-04).
         driver = os.getenv("SQL_ODBC_DRIVER", "ODBC Driver 18 for SQL Server")
-        return (
+        client_id = os.getenv("SQL_MI_CLIENT_ID")
+        url = (
             f"mssql+pyodbc://@{server}/{database}"
             f"?driver={driver.replace(' ', '+')}"
             "&Encrypt=yes&TrustServerCertificate=no"
             "&Authentication=ActiveDirectoryMsi"
         )
+        if client_id:
+            url = f"{url}&UID={client_id}"
+        return url
     return "sqlite:///./simulacoes.db"
 
 

@@ -31,10 +31,97 @@ param sqlAdminObjectId string
 @description('Nome de login do administrador Entra ID do SQL Server.')
 param sqlAdminLogin string
 
+@description('Acessa o Azure SQL apenas por Private Endpoint (exigido por policy que desabilita o endpoint público).')
+param habilitarRedePrivada bool = true
+
+@description('Espaço de endereçamento da VNet usada pela integração do App Service.')
+param prefixoVnet string = '10.20.0.0/16'
+param prefixoSubnetApp string = '10.20.1.0/24'
+param prefixoSubnetPrivada string = '10.20.2.0/24'
+
 var sufixo = '${prefixo}-${ambiente}'
 var sufixoCurto = '${prefixo}${ambiente}${uniqueString(resourceGroup().id)}'
 var nomeWebApp = 'app-${sufixo}-${uniqueString(resourceGroup().id)}'
 var usaSlot = ambiente == 'prod'
+
+// Identidade gerenciada usada pelo App Service para autenticar no SQL sem senha.
+resource identidadeApp 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: 'id-${sufixo}'
+  location: location
+}
+
+resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = if (habilitarRedePrivada) {
+  name: 'vnet-${sufixo}'
+  location: location
+  properties: {
+    addressSpace: { addressPrefixes: [prefixoVnet] }
+    subnets: [
+      {
+        name: 'snet-app'
+        properties: {
+          addressPrefix: prefixoSubnetApp
+          delegations: [
+            {
+              name: 'appservice'
+              properties: { serviceName: 'Microsoft.Web/serverFarms' }
+            }
+          ]
+        }
+      }
+      {
+        name: 'snet-privado'
+        properties: {
+          addressPrefix: prefixoSubnetPrivada
+        }
+      }
+    ]
+  }
+}
+
+resource zonaDnsSql 'Microsoft.Network/privateDnsZones@2020-06-01' = if (habilitarRedePrivada) {
+  name: 'privatelink${environment().suffixes.sqlServerHostname}'
+  location: 'global'
+}
+
+resource zonaDnsLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (habilitarRedePrivada) {
+  parent: zonaDnsSql
+  name: 'link-vnet'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: { id: vnet!.id }
+  }
+}
+
+resource peSql 'Microsoft.Network/privateEndpoints@2023-11-01' = if (habilitarRedePrivada) {
+  name: 'pe-sql-${sufixo}'
+  location: location
+  properties: {
+    subnet: { id: '${vnet!.id}/subnets/snet-privado' }
+    privateLinkServiceConnections: [
+      {
+        name: 'sql'
+        properties: {
+          privateLinkServiceId: sqlServer.id
+          groupIds: ['sqlServer']
+        }
+      }
+    ]
+  }
+}
+
+resource peSqlDns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = if (habilitarRedePrivada) {
+  parent: peSql
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'sql'
+        properties: { privateDnsZoneId: zonaDnsSql!.id }
+      }
+    ]
+  }
+}
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: 'log-${sufixo}'
@@ -86,6 +173,7 @@ var appSettingsComuns = [
   { name: 'AMBIENTE', value: ambiente }
   { name: 'SQL_SERVER', value: '${sqlServer.name}${environment().suffixes.sqlServerHostname}' }
   { name: 'SQL_DATABASE', value: sqlDatabase.name }
+  { name: 'SQL_MI_CLIENT_ID', value: identidadeApp.properties.clientId }
   { name: 'ADMIN_API_KEY', value: adminApiKey }
   { name: 'RETENCAO_MESES', value: '24' }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
@@ -98,10 +186,17 @@ var appSettingsComuns = [
 resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   name: nomeWebApp
   location: location
-  identity: { type: 'SystemAssigned' }
+  identity: {
+    type: 'SystemAssigned, UserAssigned'
+    userAssignedIdentities: {
+      '${identidadeApp.id}': {}
+    }
+  }
   properties: {
     serverFarmId: plan.id
     httpsOnly: true
+    virtualNetworkSubnetId: habilitarRedePrivada ? '${vnet!.id}/subnets/snet-app' : null
+    vnetRouteAllEnabled: habilitarRedePrivada
     siteConfig: {
       linuxFxVersion: 'PYTHON|3.12'
       alwaysOn: appServicePlanSku != 'B1' ? true : false
@@ -118,10 +213,17 @@ resource slotStaging 'Microsoft.Web/sites/slots@2023-12-01' = if (usaSlot) {
   parent: webApp
   name: 'staging'
   location: location
-  identity: { type: 'SystemAssigned' }
+  identity: {
+    type: 'SystemAssigned, UserAssigned'
+    userAssignedIdentities: {
+      '${identidadeApp.id}': {}
+    }
+  }
   properties: {
     serverFarmId: plan.id
     httpsOnly: true
+    virtualNetworkSubnetId: habilitarRedePrivada ? '${vnet!.id}/subnets/snet-app' : null
+    vnetRouteAllEnabled: habilitarRedePrivada
     siteConfig: {
       linuxFxVersion: 'PYTHON|3.12'
       alwaysOn: true
@@ -196,11 +298,11 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   location: location
   properties: {
     minimalTlsVersion: '1.2'
-    publicNetworkAccess: 'Enabled'
+    publicNetworkAccess: habilitarRedePrivada ? 'Disabled' : 'Enabled'
     administrators: {
       administratorType: 'ActiveDirectory'
-      login: sqlAdminLogin
-      sid: sqlAdminObjectId
+      login: habilitarRedePrivada ? identidadeApp.name : sqlAdminLogin
+      sid: habilitarRedePrivada ? identidadeApp.properties.principalId : sqlAdminObjectId
       tenantId: subscription().tenantId
       principalType: 'Application'
       azureADOnlyAuthentication: true
@@ -208,7 +310,7 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   }
 }
 
-resource sqlFirewallAzure 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = {
+resource sqlFirewallAzure 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = if (!habilitarRedePrivada) {
   parent: sqlServer
   name: 'AllowAllWindowsAzureIps'
   properties: {
@@ -302,5 +404,7 @@ output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
 output sqlDatabaseName string = sqlDatabase.name
 output webAppPrincipalId string = webApp.identity.principalId
+output identidadeAppClientId string = identidadeApp.properties.clientId
+output redePrivada bool = habilitarRedePrivada
 output frontDoorUrl string = habilitarFrontDoor ? frontDoor!.outputs.endpointHostName : ''
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
