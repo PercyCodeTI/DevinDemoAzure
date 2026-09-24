@@ -1,0 +1,13 @@
+version: v0.1
+testId: simulador-aposentadoria
+displayName: Simulador de Aposentadoria - carga padrão
+testPlan: simulate.jmx
+description: 90% POST /api/simulate (grava no banco) + 10% GET /
+engineInstances: 2
+failureCriteria:
+  - avg(response_time_ms) > 300
+  - percentage(error) > 1
+  - GetSimulate(p95) > 800
+autoStop:
+  errorPercentage: 90
+  timeWindow: 60

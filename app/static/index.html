@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simulador de Aporte para Aposentadoria</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header>
+  <h1>Simulador de Aporte para Aposentadoria</h1>
+  <p class="sub">Descubra quanto investir por mês para alcançar a renda que você quer na aposentadoria.</p>
+</header>
+
+<main>
+  <form id="form" novalidate>
+    <div class="grid">
+      <label>Idade atual
+        <input type="number" id="idade_atual" value="35" min="18" max="100" required />
+        <span class="erro" data-erro="idade_atual"></span>
+      </label>
+      <label>Idade de aposentadoria
+        <input type="number" id="idade_aposentadoria" value="65" min="19" max="110" required />
+        <span class="erro" data-erro="idade_aposentadoria"></span>
+      </label>
+      <label>Patrimônio já investido (R$)
+        <input type="number" id="patrimonio_atual" value="50000" min="0" step="100" required />
+        <span class="erro" data-erro="patrimonio_atual"></span>
+      </label>
+      <label>Renda mensal desejada (R$)
+        <input type="number" id="renda_desejada" value="8000" min="1" step="100" required />
+        <span class="erro" data-erro="renda_desejada"></span>
+      </label>
+      <label>Anos de usufruto
+        <input type="number" id="anos_usufruto" value="25" min="1" max="60" required />
+        <span class="erro" data-erro="anos_usufruto"></span>
+      </label>
+      <label>Retorno real anual (%)
+        <input type="number" id="taxa_retorno_real" value="4" min="0" max="50" step="0.1" required />
+        <span class="erro" data-erro="taxa_retorno_real"></span>
+      </label>
+    </div>
+    <button type="submit" id="btn">Simular</button>
+  </form>
+
+  <section id="resultado" hidden>
+    <div class="destaque">
+      <span class="rotulo">Aporte mensal necessário</span>
+      <strong id="aporte">—</strong>
+      <span id="meta-atingida" class="badge" hidden></span>
+    </div>
+    <div class="cards">
+      <div class="card"><span>Patrimônio-alvo</span><strong id="alvo">—</strong></div>
+      <div class="card"><span>Total aportado</span><strong id="aportado">—</strong></div>
+      <div class="card"><span>Total de rendimentos</span><strong id="rendimentos">—</strong></div>
+    </div>
+    <h2>Evolução do patrimônio</h2>
+    <div id="grafico"></div>
+    <div class="legenda">
+      <span><i class="sw aportes"></i> Aportes acumulados</span>
+      <span><i class="sw rendimentos"></i> Rendimentos</span>
+    </div>
+    <p class="rodape">
+      Simulação <code id="sim-id">—</code> ·
+      <span id="aviso"></span>
+    </p>
+  </section>
+
+  <p id="erro-geral" class="erro-geral" hidden></p>
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>
