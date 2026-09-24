@@ -18,11 +18,11 @@ if ! driver=$(detectar_driver); then
   echo "Driver ODBC do SQL Server ausente; instalando msodbcsql18..."
   export ACCEPT_EULA=Y
   export DEBIAN_FRONTEND=noninteractive
-  codename=$(. /etc/os-release && echo "$VERSION_ID")
+  versao=$(. /etc/os-release && echo "$VERSION_ID")
   curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
     | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-  curl -fsSL "https://packages.microsoft.com/config/ubuntu/${codename}/prod.list" \
-    | sed 's|^deb |deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] |' \
+  curl -fsSL "https://packages.microsoft.com/config/ubuntu/${versao}/prod.list" \
+    | sed 's|\[arch=|[signed-by=/usr/share/keyrings/microsoft-prod.gpg arch=|' \
     > /etc/apt/sources.list.d/mssql-release.list
   apt-get update -qq
   apt-get install -y -qq msodbcsql18 unixodbc >/dev/null
