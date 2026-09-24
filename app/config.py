@@ -36,6 +36,8 @@ def _database_url() -> str:
             "Encrypt=yes",
             "TrustServerCertificate=no",
             "Authentication=ActiveDirectoryMsi",
+            # O banco serverless pode estar em auto-pause: o resume leva ~1 min.
+            f"Connection Timeout={os.getenv('SQL_LOGIN_TIMEOUT', '90')}",
         ]
         if client_id:
             # Identidade gerenciada atribuída pelo usuário.
