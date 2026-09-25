@@ -1,0 +1,111 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        description: Ambiente alvo
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: rgdevin
+  LOCATION: centralus
+
+jobs:
+  deploy-dev:
+    if: github.event_name == 'push' || inputs.ambiente == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      url: ${{ steps.infra.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - id: infra
+        name: Provisionar e publicar (dev)
+        env:
+          AMBIENTE: dev
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          SQL_ADMIN_OBJECT_ID: ${{ secrets.SQL_ADMIN_OBJECT_ID }}
+          SQL_ADMIN_LOGIN: ${{ secrets.SQL_ADMIN_LOGIN }}
+        run: |
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev >/dev/null
+          pip install pyodbc==5.1.0
+          ./infra/deploy.sh
+      - name: Smoke test /health
+        run: |
+          URL="https://$(az webapp list -g $RESOURCE_GROUP --query "[?starts_with(name,'app-simapos-dev')].defaultHostName | [0]" -o tsv)"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/health" || true)
+            [ "$code" = "200" ] && echo "health ok: $URL" && exit 0
+            sleep 10
+          done
+          echo "health falhou"; exit 1
+
+  teste-de-carga:
+    needs: deploy-dev
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Azure Load Testing
+        uses: azure/load-testing@v1
+        with:
+          loadTestConfigFile: loadtest/config.yaml
+          resourceGroup: rgdevin
+          loadTestResource: ${{ secrets.LOAD_TEST_RESOURCE }}
+          env: |
+            [{"name": "webapp_url", "value": "${{ secrets.DEV_WEBAPP_HOST }}"}]
+
+  deploy-prod:
+    needs: [deploy-dev, teste-de-carga]
+    if: github.event_name == 'workflow_dispatch' && inputs.ambiente == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Provisionar infraestrutura (prod)
+        env:
+          AMBIENTE: prod
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          SQL_ADMIN_OBJECT_ID: ${{ secrets.SQL_ADMIN_OBJECT_ID }}
+          SQL_ADMIN_LOGIN: ${{ secrets.SQL_ADMIN_LOGIN }}
+        run: |
+          sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev >/dev/null
+          pip install pyodbc==5.1.0
+          ./infra/deploy.sh
+      - name: Publicar no slot de staging e fazer swap
+        run: |
+          APP=$(az webapp list -g $RESOURCE_GROUP --query "[?starts_with(name,'app-simapos-prod')].name | [0]" -o tsv)
+          zip -qr pacote.zip app requirements.txt startup.sh -x '*__pycache__*'
+          az webapp deploy -g $RESOURCE_GROUP -n "$APP" --slot staging --src-path pacote.zip --type zip --output none
+          HOST=$(az webapp show -g $RESOURCE_GROUP -n "$APP" --slot staging --query defaultHostName -o tsv)
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "https://$HOST/health" || true)
+            [ "$code" = "200" ] && break
+            sleep 10
+          done
+          [ "$code" = "200" ] || { echo "staging não ficou saudável"; exit 1; }
+          az webapp deployment slot swap -g $RESOURCE_GROUP -n "$APP" --slot staging --target-slot production

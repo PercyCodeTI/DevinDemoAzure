@@ -1,0 +1,17 @@
+version: v0.1
+testId: simulador-aposentadoria
+displayName: Simulador de Aposentadoria - carga padrão
+testPlan: simulate.jmx
+description: 90% POST /api/simulate (grava no banco) + 10% GET /
+engineInstances: 2
+env:
+  # Host alvo usado pelo HTTP Request Defaults do simulate.jmx (${webapp_url}).
+  - name: webapp_url
+    value: app-simapos-dev-ewkqhfwp3sejs.azurewebsites.net
+failureCriteria:
+  - percentage(error) > 1
+  - p95(response_time_ms) > 800
+  - POST /api/simulate: p95(response_time_ms) > 800
+autoStop:
+  errorPercentage: 90
+  timeWindow: 60
