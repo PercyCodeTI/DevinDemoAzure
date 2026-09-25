@@ -32,8 +32,8 @@ param sqlAdminObjectId string
 param sqlAdminLogin string
 
 @description('Modelo GPT publicado no Azure AI Foundry para o chatbot.')
-param modeloChat string = 'gpt-4o-mini'
-param modeloChatVersao string = '2024-07-18'
+param modeloChat string = 'gpt-5-mini'
+param modeloChatVersao string = '2025-08-07'
 
 @description('Capacidade do deployment do modelo, em milhares de tokens por minuto.')
 param modeloChatCapacidade int = 30

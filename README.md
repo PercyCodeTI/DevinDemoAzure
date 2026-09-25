@@ -74,7 +74,7 @@ com `GET /api/simulations?from=...`.
 ## Chatbot de recomendações
 
 O Bicep cria um recurso **Azure AI Foundry** (`Microsoft.CognitiveServices`, kind
-`AIServices`) com um deployment do modelo GPT (`gpt-4o-mini` por padrão, parâmetros
+`AIServices`) com um deployment do modelo GPT (`gpt-5-mini` por padrão, parâmetros
 `modeloChat`/`modeloChatVersao`/`modeloChatCapacidade`). O App Service chama o modelo com a
 mesma Managed Identity usada no SQL — o recurso tem `disableLocalAuth: true`, ou seja, nenhuma
 chave de API existe ou é armazenada.

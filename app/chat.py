@@ -10,7 +10,7 @@ from openai import AzureOpenAI
 
 from app.schemas import ChatMensagem, ContextoSimulacao
 
-API_VERSION = "2024-10-21"
+API_VERSION = "2025-01-01-preview"
 
 INSTRUCOES = """Você é um assistente de educação financeira do Simulador de Aporte para
 Aposentadoria. Responda em português do Brasil, em no máximo 180 palavras, com tom direto e
@@ -33,6 +33,10 @@ class ChatIndisponivelError(RuntimeError):
     """O chatbot não está configurado (sem endpoint do Foundry)."""
 
 
+class RespostaVaziaError(RuntimeError):
+    """O modelo terminou sem texto (ex.: orçamento gasto no raciocínio)."""
+
+
 @dataclass(frozen=True)
 class ChatConfig:
     endpoint: str
@@ -46,7 +50,7 @@ class ChatConfig:
 def get_chat_config() -> ChatConfig:
     return ChatConfig(
         endpoint=os.getenv("AZURE_AI_ENDPOINT", ""),
-        deployment=os.getenv("AZURE_AI_DEPLOYMENT", "gpt-4o-mini"),
+        deployment=os.getenv("AZURE_AI_DEPLOYMENT", "gpt-5-mini"),
     )
 
 
@@ -119,7 +123,9 @@ def responder(
     resposta = _cliente(config.endpoint).chat.completions.create(
         model=config.deployment,
         messages=mensagens,
-        temperature=0.3,
-        max_tokens=500,
+        max_completion_tokens=2000,
     )
-    return (resposta.choices[0].message.content or "").strip()
+    texto = (resposta.choices[0].message.content or "").strip()
+    if not texto:
+        raise RespostaVaziaError(resposta.choices[0].finish_reason or "sem conteúdo")
+    return texto
