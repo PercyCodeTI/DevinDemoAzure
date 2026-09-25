@@ -177,7 +177,8 @@ var appSettingsComuns = [
   { name: 'ADMIN_API_KEY', value: adminApiKey }
   { name: 'RETENCAO_MESES', value: '24' }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
-  { name: 'ApplicationInsightsAgent_EXTENSION_VERSION', value: '~3' }
+  // 'disabled': a telemetria vem do SDK azure-monitor-opentelemetry na aplicação.
+  { name: 'ApplicationInsightsAgent_EXTENSION_VERSION', value: 'disabled' }
   { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
   { name: 'WEBSITES_CONTAINER_START_TIME_LIMIT', value: '600' }
   { name: 'KEY_VAULT_URI', value: keyVault.properties.vaultUri }

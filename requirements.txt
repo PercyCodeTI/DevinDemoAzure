@@ -5,5 +5,6 @@ pydantic==2.9.2
 SQLAlchemy==2.0.35
 pyodbc==5.1.0
 azure-identity==1.17.1
-azure-monitor-opentelemetry==1.6.1
-opentelemetry-instrumentation-fastapi==0.48b0
+azure-monitor-opentelemetry==1.8.10
+opentelemetry-instrumentation-fastapi==0.65b0
+opentelemetry-instrumentation-sqlalchemy==0.65b0

@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.engine import Engine
 
 from app import calculations, db
 from app.config import get_settings
@@ -29,6 +30,18 @@ logger = logging.getLogger("simulador")
 STATIC_DIR = Path(__file__).parent / "static"
 
 
+def _instrumentar_banco(engine: Engine) -> None:
+    """Publica as consultas SQL como dependências no Application Insights."""
+    if not os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
+        return
+    try:
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+        SQLAlchemyInstrumentor().instrument(engine=engine)
+    except Exception:  # noqa: BLE001 - telemetria nunca derruba a aplicação
+        logger.exception("falha_instrumentar_banco")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -37,6 +50,7 @@ async def lifespan(app: FastAPI):
         db.criar_schema(engine)
     except Exception:  # noqa: BLE001 - app sobe mesmo com banco indisponível (A3)
         logger.exception("falha_criar_schema")
+    _instrumentar_banco(engine)
     gravador = GravadorAssincrono(engine, db.inserir)
     gravador.iniciar()
     app.state.settings = settings
@@ -63,7 +77,8 @@ def _configurar_telemetria() -> None:
     try:
         from azure.monitor.opentelemetry import configure_azure_monitor
 
-        configure_azure_monitor()
+        # enable_live_metrics liga o stream do Live Metrics no Application Insights.
+        configure_azure_monitor(enable_live_metrics=True)
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
         FastAPIInstrumentor.instrument_app(app)
