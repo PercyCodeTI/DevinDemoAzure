@@ -65,6 +65,22 @@
       Simulação <code id="sim-id">—</code> ·
       <span id="aviso"></span>
     </p>
+
+    <section id="chat" class="chat" hidden>
+      <h2>Assistente financeiro <span class="badge-ia" id="chat-modelo">IA</span></h2>
+      <p class="sub">Pergunte sobre a sua simulação — o assistente usa os números acima.</p>
+      <div id="chat-mensagens" class="chat-mensagens" aria-live="polite"></div>
+      <div class="chat-sugestoes" id="chat-sugestoes">
+        <button type="button" data-pergunta="O aporte mensal está alto para mim. Que alternativas eu tenho?">Aporte muito alto</button>
+        <button type="button" data-pergunta="Como posso reduzir o aporte mensal necessário?">Como reduzir o aporte</button>
+        <button type="button" data-pergunta="A taxa de retorno real que usei é realista? Que riscos ela envolve?">A taxa é realista?</button>
+      </div>
+      <form id="chat-form" class="chat-form">
+        <input type="text" id="chat-pergunta" maxlength="500" placeholder="Escreva sua pergunta..." autocomplete="off" />
+        <button type="submit" id="chat-enviar">Enviar</button>
+      </form>
+      <p class="chat-aviso">Conteúdo educacional gerado por IA. Não constitui recomendação de investimento.</p>
+    </section>
   </section>
 
   <p id="erro-geral" class="erro-geral" hidden></p>

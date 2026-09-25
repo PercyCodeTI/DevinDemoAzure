@@ -11,6 +11,7 @@ app/                API FastAPI + SPA estática (app/static)
   calculations.py   Fórmulas de anuidade e aporte (RF-02, RF-03, RF-05)
   persistence.py    Gravação assíncrona com fila de reprocessamento (A3, RNF-01)
   db.py             Tabela `simulacoes`, consultas e expurgo de retenção (RF-09, RNF-09)
+  chat.py           Chatbot de recomendações via Azure AI Foundry (modelo GPT)
 infra/              Bicep (App Service, Azure SQL, Front Door, App Insights, alertas)
 loadtest/           Plano JMeter + config do Azure Load Testing
 .github/workflows/  CI (lint/testes/bicep) e Deploy (dev → load test → prod com swap)
@@ -24,6 +25,8 @@ loadtest/           Plano JMeter + config do Azure Load Testing
 | `GET` | `/api/simulations/{id}` | Recupera uma simulação gravada |
 | `GET` | `/api/simulations?from=&to=` | Extração agregada (header `X-API-Key`) |
 | `POST` | `/api/admin/purge` | Expurgo da retenção de 24 meses (header `X-API-Key`) |
+| `POST` | `/api/chat` | Recomendações do chatbot sobre a simulação enviada no contexto |
+| `GET` | `/api/chat/status` | Indica se o chatbot está configurado e qual modelo atende |
 | `GET` | `/health` | Health probe, inclui conectividade com o banco |
 
 ## Rodar localmente
@@ -67,6 +70,21 @@ Perfil: ramp-up 0→100 VUs (2 min), sustentação 100 VUs (10 min), pico 300 VU
 Critérios: p95 < 300 ms na sustentação (< 800 ms no pico), erro < 1%, CPU < 80% e 100%
 das simulações bem-sucedidas persistidas — verificável comparando o número de amostras
 com `GET /api/simulations?from=...`.
+
+## Chatbot de recomendações
+
+O Bicep cria um recurso **Azure AI Foundry** (`Microsoft.CognitiveServices`, kind
+`AIServices`) com um deployment do modelo GPT (`gpt-4o-mini` por padrão, parâmetros
+`modeloChat`/`modeloChatVersao`/`modeloChatCapacidade`). O App Service chama o modelo com a
+mesma Managed Identity usada no SQL — o recurso tem `disableLocalAuth: true`, ou seja, nenhuma
+chave de API existe ou é armazenada.
+
+A cada pergunta o backend envia os números da simulação do usuário (idades, patrimônio, aporte,
+meta) como contexto e limita o histórico às últimas trocas. O prompt restringe as respostas a
+educação financeira geral: sem indicação de ativo, corretora ou promessa de retorno.
+
+Variáveis de ambiente: `AZURE_AI_ENDPOINT` e `AZURE_AI_DEPLOYMENT`. Sem elas o endpoint responde
+503 e a SPA simplesmente não mostra o chat.
 
 ## Observabilidade
 

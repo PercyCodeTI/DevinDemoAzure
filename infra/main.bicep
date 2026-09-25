@@ -31,6 +31,13 @@ param sqlAdminObjectId string
 @description('Nome de login do administrador Entra ID do SQL Server.')
 param sqlAdminLogin string
 
+@description('Modelo GPT publicado no Azure AI Foundry para o chatbot.')
+param modeloChat string = 'gpt-4o-mini'
+param modeloChatVersao string = '2024-07-18'
+
+@description('Capacidade do deployment do modelo, em milhares de tokens por minuto.')
+param modeloChatCapacidade int = 30
+
 @description('Acessa o Azure SQL apenas por Private Endpoint (exigido por policy que desabilita o endpoint público).')
 param habilitarRedePrivada bool = true
 
@@ -123,6 +130,61 @@ resource peSqlDns 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-
   }
 }
 
+// Azure AI Foundry: recurso de IA que hospeda o modelo GPT usado pelo chatbot.
+resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
+  name: 'aif-${sufixo}-${uniqueString(resourceGroup().id)}'
+  location: location
+  kind: 'AIServices'
+  sku: { name: 'S0' }
+  identity: { type: 'SystemAssigned' }
+  properties: {
+    // Subdomínio próprio é pré-requisito para autenticar com Entra ID em vez de chave.
+    customSubDomainName: 'aif-${sufixoCurto}'
+    publicNetworkAccess: 'Enabled'
+    disableLocalAuth: true
+    allowProjectManagement: true
+  }
+}
+
+resource projetoFoundry 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = {
+  parent: foundry
+  name: 'proj-${sufixo}'
+  location: location
+  identity: { type: 'SystemAssigned' }
+  properties: {
+    displayName: 'Simulador de Aposentadoria'
+    description: 'Recomendações financeiras sobre a simulação do usuário'
+  }
+}
+
+resource deploymentChat 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = {
+  parent: foundry
+  name: modeloChat
+  sku: {
+    name: 'GlobalStandard'
+    capacity: modeloChatCapacidade
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: modeloChat
+      version: modeloChatVersao
+    }
+    versionUpgradeOption: 'OnceCurrentVersionExpired'
+  }
+}
+
+// Cognitive Services OpenAI User: permite ao App Service chamar o modelo sem chave de API.
+resource papelFoundry 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  scope: foundry
+  name: guid(foundry.id, identidadeApp.id, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    principalId: identidadeApp.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   name: 'log-${sufixo}'
   location: location
@@ -182,6 +244,8 @@ var appSettingsComuns = [
   { name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'true' }
   { name: 'WEBSITES_CONTAINER_START_TIME_LIMIT', value: '600' }
   { name: 'KEY_VAULT_URI', value: keyVault.properties.vaultUri }
+  { name: 'AZURE_AI_ENDPOINT', value: foundry.properties.endpoint }
+  { name: 'AZURE_AI_DEPLOYMENT', value: deploymentChat.name }
 ]
 
 resource webApp 'Microsoft.Web/sites@2023-12-01' = {
@@ -409,3 +473,6 @@ output identidadeAppClientId string = identidadeApp.properties.clientId
 output redePrivada bool = habilitarRedePrivada
 output frontDoorUrl string = habilitarFrontDoor ? frontDoor!.outputs.endpointHostName : ''
 output appInsightsConnectionString string = appInsights.properties.ConnectionString
+output foundryEndpoint string = foundry.properties.endpoint
+output foundryDeployment string = deploymentChat.name
+output foundryProject string = projetoFoundry.name

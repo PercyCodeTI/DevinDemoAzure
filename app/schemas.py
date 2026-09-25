@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -64,6 +65,40 @@ class SimulacaoRegistro(BaseModel):
     versao_formula: str
     origem_pais: str | None = None
     origem_dispositivo: str | None = None
+
+
+class ContextoSimulacao(BaseModel):
+    """Números da simulação enviados como contexto para o chatbot."""
+
+    idade_atual: int = Field(ge=18, le=100)
+    idade_aposentadoria: int = Field(ge=19, le=110)
+    anos_usufruto: int = Field(ge=1, le=60)
+    patrimonio_atual: float = Field(ge=0)
+    renda_desejada: float = Field(gt=0)
+    taxa_retorno_real: float = Field(ge=0, le=0.5)
+    aporte_mensal: float = Field(ge=0)
+    patrimonio_alvo: float = Field(ge=0)
+    total_aportado: float = Field(ge=0)
+    total_rendimentos: float = Field(ge=0)
+    excedente: float = 0.0
+    meta_ja_atingida: bool = False
+
+
+class ChatMensagem(BaseModel):
+    papel: Literal["user", "assistant"]
+    conteudo: str = Field(min_length=1, max_length=2000)
+
+
+class ChatRequest(BaseModel):
+    pergunta: str = Field(min_length=3, max_length=500)
+    contexto: ContextoSimulacao
+    historico: list[ChatMensagem] = Field(default_factory=list, max_length=20)
+
+
+class ChatResponse(BaseModel):
+    resposta: str
+    modelo: str
+    aviso: str = "Conteúdo educacional. Não constitui recomendação de investimento."
 
 
 class HealthResponse(BaseModel):
