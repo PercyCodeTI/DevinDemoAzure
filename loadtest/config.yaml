@@ -3,7 +3,7 @@ testId: simulador-aposentadoria
 displayName: Simulador de Aposentadoria - carga padrão
 testPlan: simulate.jmx
 description: 90% POST /api/simulate (grava no banco) + 10% GET /
-engineInstances: 2
+engineInstances: 6
 failureCriteria:
   - percentage(error) > 1
   - p95(response_time_ms) > 800
