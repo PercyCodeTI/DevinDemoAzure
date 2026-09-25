@@ -15,8 +15,8 @@
       <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
     </TestPlan>
     <hashTree>
-      <!-- Perfil do PRD com 3x os VUs: 0→300 VUs em 2 min, 300 VUs por 10 min, pico 300→900 em 3 min, 900→0 em 1 min.
-         Os valores são por engine: com engineInstances=6 (loadtest/config.yaml) 50+100 viram 300 e 900. -->
+      <!-- Perfil do PRD: 0→100 VUs em 2 min, 100 VUs por 10 min, pico 100→300 em 3 min, 300→0 em 1 min.
+         Os valores são por engine: com engineInstances=2 (loadtest/config.yaml) 50+100 viram 100 e 300. -->
       <kg.apc.jmeter.threads.UltimateThreadGroup guiclass="kg.apc.jmeter.threads.UltimateThreadGroupGui" testclass="kg.apc.jmeter.threads.UltimateThreadGroup" testname="Carga" enabled="true">
         <collectionProp name="ultimatethreadgroupdata">
           <collectionProp name="sustentacao">
