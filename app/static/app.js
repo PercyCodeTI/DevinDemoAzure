@@ -183,6 +183,7 @@ async function simular(evento) {
 
     desenharGrafico(dados.evolucao);
     document.getElementById("resultado").hidden = false;
+    prepararChat(v, dados);
   } catch (erro) {
     const geral = document.getElementById("erro-geral");
     geral.textContent = erro.message;
@@ -193,3 +194,108 @@ async function simular(evento) {
 }
 
 document.getElementById("form").addEventListener("submit", simular);
+
+// --- Chatbot (Azure AI Foundry) ---
+
+let chatDisponivel = false;
+let chatContexto = null;
+const chatHistorico = [];
+
+async function verificarChat() {
+  try {
+    const r = await fetch("/api/chat/status");
+    if (!r.ok) return;
+    const s = await r.json();
+    chatDisponivel = Boolean(s.habilitado);
+    if (chatDisponivel) document.getElementById("chat-modelo").textContent = s.modelo;
+  } catch {
+    chatDisponivel = false;
+  }
+}
+
+function prepararChat(valores, dados) {
+  if (!chatDisponivel) return;
+  chatContexto = {
+    idade_atual: Number(valores.idade_atual),
+    idade_aposentadoria: Number(valores.idade_aposentadoria),
+    anos_usufruto: Number(valores.anos_usufruto),
+    patrimonio_atual: Number(valores.patrimonio_atual),
+    renda_desejada: Number(valores.renda_desejada),
+    taxa_retorno_real: Number(valores.taxa_retorno_real) / 100,
+    aporte_mensal: dados.aporte_mensal,
+    patrimonio_alvo: dados.patrimonio_alvo,
+    total_aportado: dados.total_aportado,
+    total_rendimentos: dados.total_rendimentos,
+    excedente: dados.excedente,
+    meta_ja_atingida: dados.meta_ja_atingida,
+  };
+  chatHistorico.length = 0;
+  document.getElementById("chat-mensagens").innerHTML = "";
+  document.getElementById("chat").hidden = false;
+  adicionarMensagem(
+    "assistant",
+    "Analisei a sua simulação. Pergunte o que quiser sobre ela — por exemplo, como reduzir o aporte mensal."
+  );
+}
+
+function adicionarMensagem(papel, texto) {
+  const div = document.createElement("div");
+  div.className = `chat-msg ${papel}`;
+  div.textContent = texto;
+  const area = document.getElementById("chat-mensagens");
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  return div;
+}
+
+async function perguntar(pergunta) {
+  if (!pergunta || !chatContexto) return;
+  const campo = document.getElementById("chat-pergunta");
+  const botao = document.getElementById("chat-enviar");
+  campo.value = "";
+  campo.disabled = true;
+  botao.disabled = true;
+  adicionarMensagem("user", pergunta);
+  const pensando = adicionarMensagem("assistant pensando", "Analisando...");
+
+  try {
+    const r = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pergunta,
+        contexto: chatContexto,
+        historico: chatHistorico.slice(-6),
+      }),
+    });
+    const dados = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      throw new Error(
+        typeof dados.detail === "string" ? dados.detail : "Assistente indisponível agora."
+      );
+    }
+    pensando.remove();
+    adicionarMensagem("assistant", dados.resposta);
+    chatHistorico.push({ papel: "user", conteudo: pergunta });
+    chatHistorico.push({ papel: "assistant", conteudo: dados.resposta });
+  } catch (erro) {
+    pensando.remove();
+    adicionarMensagem("assistant erro", erro.message);
+  } finally {
+    campo.disabled = false;
+    botao.disabled = false;
+    campo.focus();
+  }
+}
+
+document.getElementById("chat-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  perguntar(document.getElementById("chat-pergunta").value.trim());
+});
+
+document.getElementById("chat-sugestoes").addEventListener("click", (e) => {
+  const pergunta = e.target.dataset?.pergunta;
+  if (pergunta) perguntar(pergunta);
+});
+
+verificarChat();

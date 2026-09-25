@@ -14,10 +14,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.engine import Engine
 
-from app import calculations, db
+from app import calculations, chat, db
 from app.config import get_settings
 from app.persistence import GravadorAssincrono
 from app.schemas import (
+    ChatRequest,
+    ChatResponse,
     HealthResponse,
     SimulacaoRegistro,
     SimulacaoRequest,
@@ -173,6 +175,33 @@ def simular(
         versao_formula=resultado.versao_formula,
         evolucao=[p.__dict__ for p in resultado.evolucao],
     )
+
+
+@app.get("/api/chat/status")
+def status_chat() -> dict:
+    """A SPA usa isso para exibir ou ocultar o chatbot."""
+    config = chat.get_chat_config()
+    return {"habilitado": config.habilitado, "modelo": config.deployment}
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+def conversar(payload: ChatRequest) -> ChatResponse:
+    """Recomendações do modelo GPT (Azure AI Foundry) sobre a simulação do usuário."""
+    config = chat.get_chat_config()
+    try:
+        resposta = chat.responder(
+            payload.pergunta, payload.contexto, payload.historico, config
+        )
+    except chat.ChatIndisponivelError:
+        raise HTTPException(
+            status_code=503, detail="Chatbot não configurado neste ambiente"
+        ) from None
+    except Exception:  # noqa: BLE001 - falha do modelo não deve vazar detalhe interno
+        logger.exception("falha_chat")
+        raise HTTPException(
+            status_code=502, detail="Não foi possível consultar o assistente agora"
+        ) from None
+    return ChatResponse(resposta=resposta, modelo=config.deployment)
 
 
 @app.get("/api/simulations/{simulacao_id}", response_model=SimulacaoRegistro)
